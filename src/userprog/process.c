@@ -493,7 +493,8 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 {
 	char **arguments;
 	char *token, *savePtr, *stringBuffer;
-	int iStr, iArg=0, blankCount=0, iParseStr=0, argCount=0;
+	int iArg=0, blankCount=0, iParseStr=0, argCount=0;
+	unsigned int iStr;
 
 	/*
 	 * counts blank : space for new argument string buffer
@@ -644,7 +645,6 @@ void
 argument_stack(char **parse, int count, void **esp)
 {
 	char **argv_pointers;
-	void *argv;
 	int i,j;
 
 	argv_pointers = (char**)malloc(sizeof(char*) * (count+1));
