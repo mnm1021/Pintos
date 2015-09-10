@@ -516,7 +516,13 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 	 */
 	for( iStr=0; iStr<strlen(input_string); iStr++ )
 	{
-		if( input_string[iStr] == '"' )
+		// first, handle '\\' : just put the next character with '\\'
+		if( input_string[iStr] == '\\' )
+		{
+			stringBuffer[iParseStr++] = input_string[iStr++];
+			stringBuffer[iParseStr++] = input_string[iStr];
+		}
+		else if( input_string[iStr] == '"' )
 		{
 			// find the end of string surrounded by '"'.
 			while( input_string[++iStr] != '"' )
@@ -532,6 +538,11 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 				{
 					stringBuffer[iParseStr++] = '\\';
 					stringBuffer[iParseStr++] = ' ';
+				}
+				else if( input_string[iStr] == '\\' )
+				{
+					stringBuffer[iParseStr++] = input_string[iStr++];
+					stringBuffer[iParseStr++] = input_string[iStr];
 				}
 				else
 					stringBuffer[iParseStr++] = input_string[iStr];
@@ -553,6 +564,11 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 				{
 					stringBuffer[iParseStr++] = '\\';
 					stringBuffer[iParseStr++] = ' ';
+				}
+				else if( input_string[iStr] == '\\' )
+				{
+					stringBuffer[iParseStr++] = input_string[iStr++];
+					stringBuffer[iParseStr++] = input_string[iStr];
 				}
 				else
 					stringBuffer[iParseStr++] = input_string[iStr];
