@@ -634,7 +634,7 @@ argument_stack(char **parse, int count, void **esp)
 	argv_pointers = (char**)malloc(sizeof(char*) * (count+1));
 	argv_pointers[count] = 0;
 
-	// push argument string into stack
+	// push argument n~1 string into stack
 	for( i=count-1; i>-1; i-- )
 	{
 		for( j=strlen(parse[i]); j>-1; j-- )
@@ -646,6 +646,10 @@ argument_stack(char **parse, int count, void **esp)
 		//save the argv pointer
 		argv_pointers[i] = *esp;
 	}
+
+	// push word-align
+	*esp = *esp-1;
+	**(char **)esp = 0;
 
 	// push argv pointers
 	for( i=count; i>-1; i-- )
