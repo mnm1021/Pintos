@@ -206,7 +206,15 @@ thread_create (const char *name, int priority,
 
   intr_set_level (old_level);
 
-  /* Add to run queue. */
+	/* Assignment 3 : set process hierarchy */
+
+	/* set parent's thread descriptor */
+	t->parent = thread_current();
+
+	/* push back on child list */
+	list_push_back ( &thread_current()->child_list, &t->child_elem );
+  
+	/* Add to run queue. */
   thread_unblock (t);
 
   return tid;
@@ -299,6 +307,13 @@ thread_exit (void)
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
+
+	/* this thread is exited */
+	thread_current()->exited = true;
+
+	/* restore parent thread */
+	sema_up( &thread_current()->sema_wait );
+
   thread_current ()->status = THREAD_DYING;
   schedule ();
   NOT_REACHED ();
@@ -470,6 +485,18 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+
+	/* Assignment 3 : initialize child list */
+	list_init (&t->child_list);
+	t->exit_status = 0;
+	
+	/* set loaded, exited into false */
+	t->loaded = t->exited = false;
+
+	/* set semaphores 0 */
+	sema_init (&t->sema_load, 0);
+	sema_init (&t->sema_wait, 0);
+	sema_init (&t->sema_exit, 0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -541,7 +568,7 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+      //palloc_free_page (prev);
     }
 }
 

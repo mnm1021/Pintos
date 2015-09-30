@@ -3,7 +3,6 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/pagedir.h"
@@ -17,11 +16,13 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 char** argument_tokenizer (char* input_string, int* argc_receiver);
 void argument_stack (char **parse, int count, void **esp);
+void remove_child_process (struct thread *cp);
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -58,6 +59,7 @@ start_process (void *file_name_)
 
 	char **arguments;
 	int argc, i;
+	struct thread *curr;
 
 	// Assignment 1 : get arguments and argc
 	arguments = argument_tokenizer(file_name, &argc);
@@ -69,10 +71,19 @@ start_process (void *file_name_)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (arguments[0], &if_.eip, &if_.esp);
 
+	curr = thread_current();
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
+  if (!success)
+	{
+		curr->loaded = false;
     thread_exit ();
+	}
+	curr->loaded = true;
+
+	/* unblock parent thread */
+	sema_up( &curr->sema_load );
 
 	// Assignment 1 : put arguments in stack
 	argument_stack(arguments, argc, &if_.esp);
@@ -81,7 +92,7 @@ start_process (void *file_name_)
 	free(arguments);
 	
 	//debug : memory dump
-	hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
+	//hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
 
 
   /* Start the user process by simulating a return from an
@@ -103,10 +114,29 @@ start_process (void *file_name_)
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
+/*
+ * Assignment 3 : Process Hierarchy
+ * this function waits for the process of child_tid.
+ */
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+	struct thread *child;
+	int exit_status;
+
+	/* search child process */
+	child = get_child_process( child_tid );
+	if( child == NULL )
+		return -1;
+	
+	/* pause parent thread */
+	sema_down( &child->sema_wait );
+
+	/* get exit status, remove child */
+	exit_status = child->exit_status;
+	remove_child_process( child );
+
+	return exit_status;
 }
 
 /* Free the current process's resources. */
@@ -687,4 +717,45 @@ argument_stack(char **parse, int count, void **esp)
 	**(long **)esp = 0;
 
 	free(argv_pointers);
+}
+
+/*
+ * Assignment 3 : find pid from child_list
+ */
+struct thread*
+get_child_process (int pid)
+{
+	struct list child_list;
+	struct list_elem *elem;
+	struct thread *child;
+
+	/* get child list */
+	child_list = thread_current()->child_list;
+
+	/* rotate through list, find child */
+	for ( elem = list_begin( &child_list );
+	      elem != list_end( &child_list );
+				elem = list_next( elem ) )
+	{
+		/* get child struct */
+		child = list_entry( elem, struct thread, child_elem );
+		
+		if( child->tid == pid )
+			return child;
+	}
+
+	return NULL;
+}
+
+/*
+ * Assignment 3 : remove child process
+ */
+void
+remove_child_process (struct thread *cp)
+{
+	/* remove from child list */
+	list_remove( &cp->child_elem );
+	
+	/* deallocate cp */
+	palloc_free_page (cp);
 }
