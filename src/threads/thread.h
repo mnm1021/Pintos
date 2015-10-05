@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/synch.h"
+#include <filesys/file.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -112,6 +113,10 @@ struct thread
 		struct semaphore sema_exit;         /* semaphore for exit */
 
 		int exit_status;                    /* exit status value : is set in exit syscall */
+
+		/* Assignment 4 : File Descriptor */
+		struct file* *fd_table;             /* file descriptor table */
+		int num_fd;                         /* number of current file descriptors */
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

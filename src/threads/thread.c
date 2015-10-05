@@ -8,6 +8,7 @@
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
 #include "threads/palloc.h"
+#include "threads/malloc.h"
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
@@ -213,6 +214,9 @@ thread_create (const char *name, int priority,
 
 	/* push back on child list */
 	list_push_back ( &thread_current()->child_list, &t->child_elem );
+
+	/* Assignment 4 : allcoate fd table */
+	t->fd_table = palloc_get_multiple( PAL_ZERO, 2 );
   
 	/* Add to run queue. */
   thread_unblock (t);
@@ -497,6 +501,10 @@ init_thread (struct thread *t, const char *name, int priority)
 	sema_init (&t->sema_load, 0);
 	sema_init (&t->sema_wait, 0);
 	sema_init (&t->sema_exit, 0);
+
+	/* Assignment 4 : initialize file descriptor */
+	/* initialize : STDIN, STDOUT */
+	t->num_fd = 2;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

@@ -17,7 +17,9 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
-
+#include "userprog/syscall.h"
+#include <filesys/file.h>
+//
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 char** argument_tokenizer (char* input_string, int* argc_receiver);
@@ -59,31 +61,34 @@ start_process (void *file_name_)
 
 	char **arguments;
 	int argc, i;
-	struct thread *curr;
 
 	// Assignment 1 : get arguments and argc
 	arguments = argument_tokenizer(file_name, &argc);
+
+	// change thread's name
+	strlcpy( thread_current()->name, file_name, strlen(file_name)+1 );
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (arguments[0], &if_.eip, &if_.esp);
+  success = load (file_name, &if_.eip, &if_.esp);
 
-	curr = thread_current();
-
-  /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success)
-	{
-		curr->loaded = false;
-    thread_exit ();
-	}
-	curr->loaded = true;
+	thread_current()->loaded = success;
 
 	/* unblock parent thread */
-	sema_up( &curr->sema_load );
+	sema_up( &thread_current()->sema_load );
+
+	if (!success)
+	{
+		for( i=0; i<argc; i++ )
+			free(arguments[i]);
+		free(arguments);
+
+		thread_exit();
+	}
 
 	// Assignment 1 : put arguments in stack
 	argument_stack(arguments, argc, &if_.esp);
@@ -145,6 +150,16 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+	int iFile;
+
+	/* Assignment 4 : close files */
+	for( iFile=2; iFile<cur->num_fd; iFile++ )
+	{
+		file_close( cur->fd_table[iFile] );
+	}
+
+	/* deallocate fd_table */
+	palloc_free_page( cur->fd_table );
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -522,148 +537,32 @@ char**
 argument_tokenizer (char* input_string, int* argc_receiver)
 {
 	char **arguments;
-	char *token, *savePtr, *stringBuffer;
-	int iArg=0, blankCount=0, iParseStr=0, argCount=0;
-	unsigned int iStr;
+	char *token, *savePtr;
+	unsigned int iArg=0, iStr;
 
-	/*
-	 * counts blank : space for new argument string buffer
-	 */
+	if( input_string == NULL )
+		thread_exit();
+	
+	*argc_receiver = 1;
+
 	for( iStr=0; iStr<strlen(input_string); iStr++ )
 	{
-		if( input_string[iStr] == ' ' ) blankCount++;
+		if( input_string[iStr] == ' ' && iStr != strlen(input_string)-1 )
+		{
+			if( input_string[iStr+1] != ' ' )
+				*argc_receiver += 1;
+		}
 	}
 
-	/*
-	 * allocate stringBuffer
-	 */
-	stringBuffer = (char*)malloc(sizeof(char) * (strlen(input_string)+blankCount));
-	memset(stringBuffer, 0x00, sizeof(stringBuffer));
+	arguments = (char**)malloc(sizeof(char*) * (*argc_receiver));
 
-	/*
-	 * copy input_string to stringBuffer :
-	 * if '"' comes, find the whole string, erase '"'.
-	 * if ' ' is inside '"' , convert ' ' into '\ '.
-	 */
-	for( iStr=0; iStr<strlen(input_string); iStr++ )
+	for( token = strtok_r( input_string, " ", &savePtr );
+	     token != NULL;
+			 token = strtok_r( NULL, " ", &savePtr ) )
 	{
-		// first, handle '\\' : just put the next character with '\\'
-		if( input_string[iStr] == '\\' )
-		{
-			stringBuffer[iParseStr++] = input_string[iStr++];
-			stringBuffer[iParseStr++] = input_string[iStr];
-		}
-		else if( input_string[iStr] == '"' )
-		{
-			// find the end of string surrounded by '"'.
-			while( input_string[++iStr] != '"' )
-			{
-				// exception handling
-				if( iStr >= strlen(input_string) )
-				{
-					// '"' not closed
-					process_exit();
-				}
-
-				if( input_string[iStr] == ' ' )
-				{
-					stringBuffer[iParseStr++] = '\\';
-					stringBuffer[iParseStr++] = ' ';
-				}
-				else if( input_string[iStr] == '\\' )
-				{
-					stringBuffer[iParseStr++] = input_string[iStr++];
-					stringBuffer[iParseStr++] = input_string[iStr];
-				}
-				else
-					stringBuffer[iParseStr++] = input_string[iStr];
-			}
-		}
-		else if( input_string[iStr] == '\'' ) //also handle '\''
-		{
-			// find the end of string surrounded by '"'.
-			while( input_string[++iStr] != '\'' )
-			{
-				// exception handling
-				if( iStr >= strlen(input_string) )
-				{
-					// '"' not closed
-					process_exit();
-				}
-
-				if( input_string[iStr] == ' ' )
-				{
-					stringBuffer[iParseStr++] = '\\';
-					stringBuffer[iParseStr++] = ' ';
-				}
-				else if( input_string[iStr] == '\\' )
-				{
-					stringBuffer[iParseStr++] = input_string[iStr++];
-					stringBuffer[iParseStr++] = input_string[iStr];
-				}
-				else
-					stringBuffer[iParseStr++] = input_string[iStr];
-			}
-		}
-		else
-		{
-			//copy input_string's value
-			stringBuffer[iParseStr++] = input_string[iStr];
-		}
+		arguments[iArg] = (char*)malloc(sizeof(char) * strlen(token));
+		strlcpy( arguments[iArg++], token, strlen(token)+1 );
 	}
-	stringBuffer[iParseStr] = 0;
-
-
-	/*
-	 * gets the number of arguments.
-	 */
-	for( iStr=0; iStr<strlen(stringBuffer); iStr++ )
-	{
-		if( stringBuffer[iStr] == '\\' )
-			iStr++;
-		else if( stringBuffer[iStr] == ' ' )
-		{
-			if( iStr != 0 && iStr != strlen(stringBuffer)-1 )
-				if( stringBuffer[iStr-1] != ' ' && stringBuffer[iStr+1] != ' ' )
-					argCount++;
-		}
-	}
-	if( stringBuffer[iStr-1] != ' ' ) argCount++;
-
-	//put argc_receiver a value
-	*argc_receiver = argCount;
-
-	//allocate arguments
-	arguments = (char**)malloc(sizeof(char*) * argCount);
-
-
-	/*
-	 * slice string by " ", save ' ' if '\ '.
-	 */
-	for( token = strtok_r(stringBuffer, " ", &savePtr);
-				token != NULL;
-				token = strtok_r(NULL, " ", &savePtr) )
-	{
-		//handling '\\'
-		while( token[strlen(token)-1] == '\\' )
-		{
-			// \0 => ' '
-			token[strlen(token)] = ' ';
-			//reset savePtr
-			savePtr = strstr(savePtr, " ");
-			if( savePtr != NULL )
-			{
-				*savePtr = 0;
-				savePtr += 1;
-			}
-		}
-
-		//store token to return value
-		arguments[iArg] = (char*)malloc(sizeof(char) * (strlen(token)+1));
-		strlcpy(arguments[iArg++], token, strlen(token)+1);
-	}
-
-	free(stringBuffer);
 
 	return arguments;
 }
@@ -694,8 +593,11 @@ argument_stack(char **parse, int count, void **esp)
 	}
 
 	// push word-align
-	*esp = *esp-1;
-	**(char **)esp = 0;
+	while( *(int*)esp%4 != 0 )
+	{
+		*esp = *esp-1;
+		**(char **)esp = 0;
+	}
 
 	// push argv pointers
 	for( i=count; i>-1; i-- )
@@ -725,16 +627,12 @@ argument_stack(char **parse, int count, void **esp)
 struct thread*
 get_child_process (int pid)
 {
-	struct list child_list;
 	struct list_elem *elem;
 	struct thread *child;
 
-	/* get child list */
-	child_list = thread_current()->child_list;
-
 	/* rotate through list, find child */
-	for ( elem = list_begin( &child_list );
-	      elem != list_end( &child_list );
+	for ( elem = list_begin( &thread_current()->child_list );
+	      elem != list_end( &thread_current()->child_list );
 				elem = list_next( elem ) )
 	{
 		/* get child struct */
@@ -753,9 +651,59 @@ get_child_process (int pid)
 void
 remove_child_process (struct thread *cp)
 {
+	/* validate child process */
+	if( get_child_process( cp->tid ) == NULL )
+		return;
+
 	/* remove from child list */
 	list_remove( &cp->child_elem );
 	
 	/* deallocate cp */
 	palloc_free_page (cp);
+}
+
+/*
+ * Assignment 4 : add file descriptor on table
+ */
+int
+process_add_file (struct file *f)
+{
+	thread_current()->fd_table[ thread_current()->num_fd++ ] = f;
+
+	return thread_current()->num_fd-1;
+}
+
+/*
+ * Assignment 4 : get file descriptor
+ */
+struct file*
+process_get_file (int fd)
+{
+	if( fd < 0 )
+		return NULL;
+	
+	if( fd >= thread_current()->num_fd )
+		return NULL;
+	
+	return thread_current()->fd_table[fd];
+}
+
+/*
+ * Assignent 4 : close file
+ */
+void
+process_close_file (int fd)
+{
+	if( fd < thread_current()->num_fd && fd > 1 )
+	{
+		/* check if fd is still open */
+		if( thread_current()->fd_table[fd] == NULL )
+			return;
+
+		/* close the file */
+		file_close( thread_current()->fd_table[fd] );
+
+		/* restore into NULL */
+		thread_current()->fd_table[fd] = NULL;
+	}
 }
