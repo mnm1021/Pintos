@@ -19,12 +19,18 @@
 #include "threads/malloc.h"
 #include "userprog/syscall.h"
 #include <filesys/file.h>
-//
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 char** argument_tokenizer (char* input_string, int* argc_receiver);
-void argument_stack (char **parse, int count, void **esp);
+bool argument_stack (char **parse, int count, void **esp);
 void remove_child_process (struct thread *cp);
+
+struct cmdline
+{
+	char **arguments;
+	int argc;
+};
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -35,6 +41,8 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
+	int argc;
+	struct cmdline *cmdLine;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -43,39 +51,54 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+	// Assignment 1 : get arguments and argc
+	cmdLine = palloc_get_page (0);
+	if (cmdLine == NULL )
+	{
+		palloc_free_page (fn_copy);
+		return TID_ERROR;
+	}
+
+	cmdLine->arguments = argument_tokenizer(fn_copy, &argc);
+
+	/* free fn_copy */
+	palloc_free_page (fn_copy);
+
+	/* if allocation fails, free and return. */
+	if( cmdLine->arguments == NULL )
+	{
+		palloc_free_page (cmdLine);
+		return TID_ERROR;
+	}
+
+	cmdLine->argc = argc;
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (cmdLine->arguments[0], PRI_DEFAULT, start_process, cmdLine);
+
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (cmdLine); 
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *aux)
 {
-  char *file_name = file_name_;
+  struct cmdline *cmdLine = aux;
   struct intr_frame if_;
   bool success;
 
-	char **arguments;
-	int argc, i;
-
-	// Assignment 1 : get arguments and argc
-	arguments = argument_tokenizer(file_name, &argc);
-
-	// change thread's name
-	strlcpy( thread_current()->name, file_name, strlen(file_name)+1 );
+	int i;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (cmdLine->arguments[0], &if_.eip, &if_.esp);
 
-  palloc_free_page (file_name);
 	thread_current()->loaded = success;
 
 	/* unblock parent thread */
@@ -83,18 +106,30 @@ start_process (void *file_name_)
 
 	if (!success)
 	{
-		for( i=0; i<argc; i++ )
-			free(arguments[i]);
-		free(arguments);
+		//free all argument elems
+		for( i=0; i<cmdLine->argc; i++ )
+			free(cmdLine->arguments[i]);
+		//free arguments
+		free(cmdLine->arguments);
+		//free cmdLine
+		palloc_free_page(cmdLine);
 
 		thread_exit();
 	}
 
 	// Assignment 1 : put arguments in stack
-	argument_stack(arguments, argc, &if_.esp);
-	for( i=0; i<argc; i++ )
-		free(arguments[i]);
-	free(arguments);
+	success = argument_stack(cmdLine->arguments, cmdLine->argc, &if_.esp);
+
+	//free all argument elems
+	for( i=0; i<cmdLine->argc; i++ )
+		free(cmdLine->arguments[i]);
+	//free arguments
+	free(cmdLine->arguments);
+	//free cmdLine
+	palloc_free_page(cmdLine);
+
+	if( !success )
+		thread_exit();
 	
 	//debug : memory dump
 	//hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
@@ -538,16 +573,16 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 {
 	char **arguments;
 	char *token, *savePtr;
-	unsigned int iArg=0, iStr;
+	int iArg=0, iStr, i;
 
 	if( input_string == NULL )
 		thread_exit();
 	
 	*argc_receiver = 1;
 
-	for( iStr=0; iStr<strlen(input_string); iStr++ )
+	for( iStr=0; iStr<(int)strlen(input_string); iStr++ )
 	{
-		if( input_string[iStr] == ' ' && iStr != strlen(input_string)-1 )
+		if( input_string[iStr] == ' ' && iStr != (int)strlen(input_string)-1 )
 		{
 			if( input_string[iStr+1] != ' ' )
 				*argc_receiver += 1;
@@ -555,12 +590,21 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 	}
 
 	arguments = (char**)malloc(sizeof(char*) * (*argc_receiver));
+	if( arguments == NULL )
+		return NULL;
 
 	for( token = strtok_r( input_string, " ", &savePtr );
 	     token != NULL;
 			 token = strtok_r( NULL, " ", &savePtr ) )
 	{
 		arguments[iArg] = (char*)malloc(sizeof(char) * strlen(token));
+		if( arguments[iArg] == NULL )
+		{
+			for( i=iArg-1; i>-1; i-- )
+				free( arguments[iArg] );
+			free( arguments );
+			return NULL;
+		}
 		strlcpy( arguments[iArg++], token, strlen(token)+1 );
 	}
 
@@ -570,13 +614,15 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 /*
  * put arguments into stack in 80x86 calling convention order.
  */
-void
+bool
 argument_stack(char **parse, int count, void **esp)
 {
 	char **argv_pointers;
 	int i,j;
 
 	argv_pointers = (char**)malloc(sizeof(char*) * (count+1));
+	if( argv_pointers == NULL )
+		return false;
 	argv_pointers[count] = 0;
 
 	// push argument n~1 string into stack
@@ -619,6 +665,8 @@ argument_stack(char **parse, int count, void **esp)
 	**(long **)esp = 0;
 
 	free(argv_pointers);
+
+	return true;
 }
 
 /*
