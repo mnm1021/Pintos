@@ -196,6 +196,9 @@ process_exit (void)
 		file_close( cur->fd_table[iFile] );
 	}
 
+	/* Assignment 5 : close current executable */
+	file_close( thread_current()->current_file );
+
 	/* deallocate fd_table */
 	palloc_free_page( cur->fd_table );
 
