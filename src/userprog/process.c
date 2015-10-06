@@ -10,6 +10,7 @@
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "filesys/inode.h"
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
@@ -17,8 +18,8 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 #include "userprog/syscall.h"
-#include <filesys/file.h>
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -31,6 +32,8 @@ struct cmdline
 	char **arguments;
 	int argc;
 };
+
+extern struct lock filesys_lock; /* lock for file I/O */
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -196,6 +199,7 @@ process_exit (void)
 	/* deallocate fd_table */
 	palloc_free_page( cur->fd_table );
 
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   pd = cur->pagedir;
@@ -319,13 +323,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+	/* acquire lock */
+	lock_acquire( &filesys_lock );
+
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
     {
+			lock_release( &filesys_lock );
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
+	
+	/* add current file */
+	t->current_file = file;
+	file_deny_write( file );
+	lock_release( &filesys_lock );
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -410,7 +423,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  //file_close (file);
   return success;
 }
 

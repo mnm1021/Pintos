@@ -10,6 +10,8 @@
 #include "threads/vaddr.h"
 #include "userprog/process.h"
 
+struct lock filesys_lock; /* lock for file I/O */
+
 static void syscall_handler (struct intr_frame *);
 void check_address (void *addr);
 void get_argument (void *esp, int *arg, int count);
@@ -28,8 +30,6 @@ static int write(int fd, void *buffer, unsigned size);
 static void seek(int fd, unsigned position);
 static unsigned tell(int fd);
 static void close(int fd);
-
-struct lock filesys_lock; /* lock for file I/O */
 
 /*
  * in case that the kernel needs to call exit.
