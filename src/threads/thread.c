@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -27,6 +28,10 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* Assignment 6 : sleep list & least-wake-up tick */
+static struct list sleep_list;
+static int64_t next_tick_to_wake;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -92,6 +97,9 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+	/* Assignment 6 : Alarm */
+	list_init (&sleep_list);
+	next_tick_to_wake = INT64_MAX;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -620,7 +628,98 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/*
+ * Assignment 6 : make current thread blocked
+ */
+void
+thread_sleep (int64_t ticks)
+{
+	struct thread *t = thread_current();
+  enum intr_level old_level;
+
+  ASSERT (!intr_context ());
+
+	/* disable interrupt */
+  old_level = intr_disable ();
+
+	/* check if current thread is initial thread */
+	if( thread_current() != idle_thread )
+	{
+		/* set wakeup tick */
+		t->wakeup_tick = ticks;
+
+		/* add to sleep_list */
+		list_push_back( &sleep_list, &t->elem );
+
+		/* update tick */
+		update_next_tick_to_awake (ticks);
+
+		/* block current thread */
+		thread_block();
+	}
+
+	/* enable interrupt */
+  intr_set_level (old_level);
+}
+
+/*
+ * Assignment 6 : awake thread
+ */
+void
+thread_awake (int64_t ticks)
+{
+	struct list_elem *e;
+	struct thread *t;
+
+	/* initialize tick */
+	next_tick_to_wake = INT64_MAX;
+
+	e = list_begin( &sleep_list );
+
+	while( e != list_end( &sleep_list ) )
+	{
+		/* get sleeping thread */
+		t = list_entry( e, struct thread, elem );
+
+		/* if bigger than current tick, unblock thread */
+		if( ticks >= t->wakeup_tick )
+		{
+			/* remove from sleep list */
+			e = list_remove( &t->elem );
+
+			/* unblock thread */
+			thread_unblock( t );
+		}
+		/* else, update next tick */
+		else
+		{
+			e = list_next( e );
+			update_next_tick_to_awake( t->wakeup_tick );
+		}
+	}
+}
+
+/*
+ * Assignment 6 : update next tick
+ */
+void
+update_next_tick_to_awake (int64_t ticks)
+{
+	if( next_tick_to_wake > ticks )
+		next_tick_to_wake = ticks;
+}
+
+/*
+ * Assignment 6 : return next_tick_
+ */
+int64_t
+get_next_tick_to_awake ()
+{
+	return next_tick_to_wake;
+}
+

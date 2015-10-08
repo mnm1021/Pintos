@@ -95,6 +95,9 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+		/* Assignment 6 : Alarm */
+		int64_t wakeup_tick;                /* tick for wake-up */
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -160,5 +163,15 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+/* Assignment 6 : Alarm */
+/* make current thread to be blocked */
+void thread_sleep (int64_t ticks);
+/* make thread awake from queue */
+void thread_awake (int64_t ticks);
+/* save next tick */
+void update_next_tick_to_awake (int64_t ticks);
+/* return next_tick_to_awake */
+int64_t get_next_tick_to_awake (void);
 
 #endif /* threads/thread.h */
