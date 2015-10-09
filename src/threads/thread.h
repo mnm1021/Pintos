@@ -174,4 +174,10 @@ void update_next_tick_to_awake (int64_t ticks);
 /* return next_tick_to_awake */
 int64_t get_next_tick_to_awake (void);
 
+/* Assignment 7 : Priority */
+/* compare current thread's priority with highest thread priority */
+void test_max_priority (void);
+/* compare between 2 threads */
+bool cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 #endif /* threads/thread.h */

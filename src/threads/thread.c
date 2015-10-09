@@ -15,7 +15,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
-
+//
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -224,14 +224,13 @@ thread_create (const char *name, int priority,
 
 	/* Assignment 4 : allcoate fd table */
 	t->fd_table = palloc_get_page(PAL_ZERO);
-	//if( t->fd_table == NULL )
-	//{
-		//palloc_free_page (t);
-		//return TID_ERROR;
-	//}
   
 	/* Add to run queue. */
   thread_unblock (t);
+
+	/* Assignment 7 : compare t with current thread,
+	                  yield if higher priority. */
+	test_max_priority();
 
   return tid;
 }
@@ -269,7 +268,9 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+	/* Assignment 7 : store on queue by priority */
+	list_insert_ordered( &ready_list, &t->elem, cmp_priority, NULL );
+
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -347,7 +348,9 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+		/* Assignment 7 : store on queue in order */
+		list_insert_ordered( &ready_list, &cur->elem, cmp_priority, NULL );
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -375,6 +378,9 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+
+	/* Assignment 7 : priority */
+	test_max_priority();
 }
 
 /* Returns the current thread's priority. */
@@ -723,3 +729,40 @@ get_next_tick_to_awake ()
 	return next_tick_to_wake;
 }
 
+
+/*
+ * Assignment 7 :
+ * peek highest priority. if higher, yield.
+ */
+void
+test_max_priority ()
+{
+	struct list_elem *e;
+	struct thread *t;
+
+	if( list_empty( &ready_list ) == false )
+	{
+		e = list_begin( &ready_list );
+		t = list_entry( e, struct thread, elem );
+
+		/* if priority less than list's front, yield */
+		if( thread_current()->priority < t->priority )
+		{
+			thread_yield();
+		}
+	}
+}
+
+/*
+ * Assignment 7 : for using list API
+ */
+bool
+cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+	struct thread *a_, *b_;
+
+	a_ = list_entry( a, struct thread, elem );
+	b_ = list_entry( b, struct thread, elem );
+
+	return a_->priority > b_->priority;
+}
