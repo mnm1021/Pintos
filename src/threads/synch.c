@@ -203,12 +203,38 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+	struct thread *t = thread_current();
+  enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+	/* Assignment 9 */
+	/* disable interrupt */
+  old_level = intr_disable ();
+
+	if( lock->holder != NULL )
+	{
+		/* store lock's address */
+		t->wait_on_lock = lock;
+
+		/* store current priority, store on donations */
+		list_push_back( &lock->holder->donations, &t->donation_elem );
+
+		/* donate priority */
+		donate_priority( t );
+	}
+
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+
+	/* remove wait lock */
+	t->wait_on_lock = NULL;
+
+  lock->holder = thread_current();
+
+	/* enable interrupt */
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -239,11 +265,28 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
+	struct thread *t = thread_current();
+	enum intr_level old_level;
+
+	ASSERT (!intr_context ());
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+	/* Assignment 9 : refresh priority */
+	/* disable interrupt */
+	old_level = intr_disable ();
+
   lock->holder = NULL;
+
+	/* remove from donations, refresh priority */
+	remove_with_lock( t, lock );
+	t->priority = t->init_priority;
+	refresh_priority( t, &t->priority );
+
   sema_up (&lock->semaphore);
+
+	/* enable interrupt */
+	intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false

@@ -98,6 +98,12 @@ struct thread
 		/* Assignment 6 : Alarm */
 		int64_t wakeup_tick;                /* tick for wake-up */
 
+		/* Assignment 9 : Priority Inversion */
+		int init_priority;                  /* store initial priority */
+		struct lock *wait_on_lock;          /* lock waiting for acquirement */
+		struct list donations;              /* store threads donated */
+		struct list_elem donation_elem;     /* element for donations */
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -179,5 +185,13 @@ int64_t get_next_tick_to_awake (void);
 void test_max_priority (void);
 /* compare between 2 threads */
 bool cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+/* Assignment 9 : Priority Inversion */
+/* donate current priority to other thread */
+void donate_priority (struct thread *cur);
+/* remove lock-holder from donations */
+void remove_with_lock (struct thread *cur, struct lock *lock);
+/* after thread donation or lock release, refresh priority */
+void refresh_priority (struct thread *cur, int *priority);
 
 #endif /* threads/thread.h */

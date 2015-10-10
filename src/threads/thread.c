@@ -15,7 +15,7 @@
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
-//
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -377,7 +377,13 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+	/* Assignment 9 : re-design set_priority */
+
+	/* set new priority */
+  thread_current()->priority = thread_current()->init_priority = new_priority;
+
+	/* refresh priority, donate */
+	refresh_priority( thread_current(), &thread_current()->priority );
 
 	/* Assignment 7 : priority */
 	test_max_priority();
@@ -523,6 +529,11 @@ init_thread (struct thread *t, const char *name, int priority)
 	/* Assignment 4 : initialize file descriptor */
 	/* initialize : STDIN, STDOUT */
 	t->num_fd = 2;
+
+	/* Assignment 9 : Priority Inversion */
+	t->wait_on_lock = NULL;
+	t->init_priority = priority;
+	list_init( &t->donations );
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -765,4 +776,71 @@ cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UN
 	b_ = list_entry( b, struct thread, elem );
 
 	return a_->priority > b_->priority;
+}
+
+/*
+ * Assignment 9 :
+ * donate priority to all linked threads.
+ */
+void donate_priority (struct thread *cur)
+{
+	struct thread *holder = cur->wait_on_lock->holder;
+
+	/* refresh the lock's holder's priority. */
+	while( holder != NULL )
+	{
+		refresh_priority( holder, &holder->priority );
+
+		if( holder->wait_on_lock == NULL )
+			break;
+
+		holder = holder->wait_on_lock->holder;
+	}
+}
+
+/*
+ * Assignment 9 : remove thread from donations.
+ */
+void remove_with_lock (struct thread *cur, struct lock *lock)
+{
+	struct list_elem *e;
+	struct thread *t;
+
+	for( e = list_begin( &cur->donations );
+	     e != list_end( &cur->donations );
+			 /* empty */ )
+	{
+		t = list_entry( e, struct thread, donation_elem );
+
+		/* if lock waited for, remove thread from donations. */
+		if( t->wait_on_lock == lock )
+			e = list_remove( e );
+		/* else move on to next. */
+		else
+			e = list_next( e );
+	}
+}
+
+/*
+ * Assignment 9 : refresh priority after release.
+ * set the highest priority value from donations.
+ */
+void refresh_priority (struct thread *cur, int *priority)
+{
+	struct list_elem *e;
+
+	/* if current thread's priority is higher, donate. */
+	if( *priority <= cur->priority )
+		*priority = cur->priority;
+	else
+		return;
+	
+	for( e = list_begin( &cur->donations );
+	     e != list_end( &cur->donations );
+			 e = list_next( e ) )
+	{
+		/* recursively search the highest priority */
+		refresh_priority( list_entry( e, struct thread, donation_elem ),
+		                  priority );
+	}
 }
