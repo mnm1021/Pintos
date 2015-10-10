@@ -26,6 +26,11 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Assignment 10 : MLFQS */
+#define NICE_DEFAULT 0
+#define RECENT_CPU_DEFAULT 0
+#define LOAD_AVG_DEFAULT 0
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -103,6 +108,10 @@ struct thread
 		struct lock *wait_on_lock;          /* lock waiting for acquirement */
 		struct list donations;              /* store threads donated */
 		struct list_elem donation_elem;     /* element for donations */
+
+		/* Assignment 10 : MLFQS */
+		int nice;                           /* set nice value for mlfqs */
+		int recent_cpu;                     /* set recently-used cpu ticks for mlfqs */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -193,5 +202,17 @@ void donate_priority (struct thread *cur);
 void remove_with_lock (struct thread *cur, struct lock *lock);
 /* after thread donation or lock release, refresh priority */
 void refresh_priority (struct thread *cur, int *priority);
+
+/* Assignment 10 : MLFQS */
+int thread_get_nice (void);
+void thread_set_nice (int);
+int thread_get_recent_cpu (void);
+int thread_get_load_avg (void);
+
+void mlfqs_priority (struct thread *t);
+void mlfqs_recent_cpu (struct thread *t);
+void mlfqs_load_avg (void);
+void mlfqs_increment (void);
+void mlfqs_recalc (void);
 
 #endif /* threads/thread.h */

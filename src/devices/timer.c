@@ -170,13 +170,28 @@ timer_print_stats (void)
 {
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+
+	/* Assignment 10 : MLFQS */
+	if( thread_mlfqs )
+	{
+		/* increase recent_cpu */
+		mlfqs_increment();
+		
+		/* reload current thread's priority by 4 ticks */
+		if( ticks%4 == 3 )
+			mlfqs_priority( thread_current() );
+
+		/* reload every threads's priority by 100 ticks */
+		if( ticks%100 == 0 )
+			mlfqs_recalc();
+	}
 
 	/* Assignment 6 : call thread_awake */
 	if( ticks >= get_next_tick_to_awake() )

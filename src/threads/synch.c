@@ -210,20 +210,25 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-	/* Assignment 9 */
 	/* disable interrupt */
   old_level = intr_disable ();
 
-	if( lock->holder != NULL )
+	/* Assignment 10 : MLFQS */
+	if( !thread_mlfqs )
 	{
-		/* store lock's address */
-		t->wait_on_lock = lock;
+		/* Assignment 9 */
 
-		/* store current priority, store on donations */
-		list_push_back( &lock->holder->donations, &t->donation_elem );
+		if( lock->holder != NULL )
+		{
+			/* store lock's address */
+			t->wait_on_lock = lock;
 
-		/* donate priority */
-		donate_priority( t );
+			/* store current priority, store on donations */
+			list_push_back( &lock->holder->donations, &t->donation_elem );
+
+			/* donate priority */
+			donate_priority( t );
+		}
 	}
 
   sema_down (&lock->semaphore);
@@ -272,16 +277,21 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-	/* Assignment 9 : refresh priority */
 	/* disable interrupt */
 	old_level = intr_disable ();
 
   lock->holder = NULL;
 
-	/* remove from donations, refresh priority */
-	remove_with_lock( t, lock );
-	t->priority = t->init_priority;
-	refresh_priority( t, &t->priority );
+	/* Assignment 10 : MLFQS */
+	if( !thread_mlfqs )
+	{
+		/* Assignment 9 : refresh priority */
+
+		/* remove from donations, refresh priority */
+		remove_with_lock( t, lock );
+		t->priority = t->init_priority;
+		refresh_priority( t, &t->priority );
+	}
 
   sema_up (&lock->semaphore);
 
