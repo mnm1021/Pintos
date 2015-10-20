@@ -100,44 +100,44 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
-		/* Assignment 6 : Alarm */
-		int64_t wakeup_tick;                /* tick for wake-up */
+    /* Assignment 6 : Alarm */
+    int64_t wakeup_tick;                /* tick for wake-up */
 
-		/* Assignment 9 : Priority Inversion */
-		int init_priority;                  /* store initial priority */
-		struct lock *wait_on_lock;          /* lock waiting for acquirement */
-		struct list donations;              /* store threads donated */
-		struct list_elem donation_elem;     /* element for donations */
+    /* Assignment 9 : Priority Inversion */
+    int init_priority;                  /* store initial priority */
+    struct lock *wait_on_lock;          /* lock waiting for acquirement */
+    struct list donations;              /* store threads donated */
+    struct list_elem donation_elem;     /* element for donations */
 
-		/* Assignment 10 : MLFQS */
-		int nice;                           /* set nice value for mlfqs */
-		int recent_cpu;                     /* set recently-used cpu ticks for mlfqs */
+    /* Assignment 10 : MLFQS */
+    int nice;                           /* set nice value for mlfqs */
+    int recent_cpu;                     /* set recently-used cpu ticks for mlfqs */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-		/* Assignment 3 : Process Hierarchy */
-		struct thread *parent;              /* parent thread's descriptor */
-		struct list_elem child_elem;        /* element of child_list */
-		struct list child_list;             /* list of this thread's child */
+    /* Assignment 3 : Process Hierarchy */
+    struct thread *parent;              /* parent thread's descriptor */
+    struct list_elem child_elem;        /* element of child_list */
+    struct list child_list;             /* list of this thread's child */
 
-		bool loaded;                        /* is loaded on memory? */
-		bool exited;                        /* is thread exited? */
+    bool loaded;                        /* is loaded on memory? */
+    bool exited;                        /* is thread exited? */
 
-		struct semaphore sema_load;         /* semaphore for load */
-		struct semaphore sema_wait;         /* semaphore for wait */
-		struct semaphore sema_exit;         /* semaphore for exit */
+    struct semaphore sema_load;         /* semaphore for load */
+    struct semaphore sema_wait;         /* semaphore for wait */
+    struct semaphore sema_exit;         /* semaphore for exit */
 
-		int exit_status;                    /* exit status value : is set in exit syscall */
-		
-		/* Assignment 5 : current file */
-		struct file *current_file;          /* current open file */
+    int exit_status;                    /* exit status value : is set in exit syscall */
+    
+    /* Assignment 5 : current file */
+    struct file *current_file;          /* current open file */
 
-		/* Assignment 4 : File Descriptor */
-		struct file* *fd_table;             /* file descriptor table */
-		int num_fd;                         /* number of current file descriptors */
+    /* Assignment 4 : File Descriptor */
+    struct file* *fd_table;             /* file descriptor table */
+    int num_fd;                         /* number of current file descriptors */
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */

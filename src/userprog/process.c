@@ -29,8 +29,8 @@ void remove_child_process (struct thread *cp);
 
 struct cmdline
 {
-	char **arguments;
-	int argc;
+  char **arguments;
+  int argc;
 };
 
 extern struct lock filesys_lock; /* lock for file I/O */
@@ -44,8 +44,8 @@ process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
-	int argc;
-	struct cmdline *cmdLine;
+  int argc;
+  struct cmdline *cmdLine;
 
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
@@ -54,27 +54,27 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-	// Assignment 1 : get arguments and argc
-	cmdLine = palloc_get_page (0);
-	if (cmdLine == NULL )
-	{
-		palloc_free_page (fn_copy);
-		return TID_ERROR;
-	}
+  // Assignment 1 : get arguments and argc
+  cmdLine = palloc_get_page (0);
+  if (cmdLine == NULL )
+  {
+    palloc_free_page (fn_copy);
+    return TID_ERROR;
+  }
 
-	cmdLine->arguments = argument_tokenizer(fn_copy, &argc);
+  cmdLine->arguments = argument_tokenizer(fn_copy, &argc);
 
-	/* free fn_copy */
-	palloc_free_page (fn_copy);
+  /* free fn_copy */
+  palloc_free_page (fn_copy);
 
-	/* if allocation fails, free and return. */
-	if( cmdLine->arguments == NULL )
-	{
-		palloc_free_page (cmdLine);
-		return TID_ERROR;
-	}
+  /* if allocation fails, free and return. */
+  if( cmdLine->arguments == NULL )
+  {
+    palloc_free_page (cmdLine);
+    return TID_ERROR;
+  }
 
-	cmdLine->argc = argc;
+  cmdLine->argc = argc;
 
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (cmdLine->arguments[0], PRI_DEFAULT, start_process, cmdLine);
@@ -93,7 +93,7 @@ start_process (void *aux)
   struct intr_frame if_;
   bool success;
 
-	int i;
+  int i;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -102,40 +102,40 @@ start_process (void *aux)
   if_.eflags = FLAG_IF | FLAG_MBS;
   success = load (cmdLine->arguments[0], &if_.eip, &if_.esp);
 
-	thread_current()->loaded = success;
+  thread_current()->loaded = success;
 
-	/* unblock parent thread */
-	sema_up( &thread_current()->sema_load );
+  /* unblock parent thread */
+  sema_up( &thread_current()->sema_load );
 
-	if (!success)
-	{
-		//free all argument elems
-		for( i=0; i<cmdLine->argc; i++ )
-			free(cmdLine->arguments[i]);
-		//free arguments
-		free(cmdLine->arguments);
-		//free cmdLine
-		palloc_free_page(cmdLine);
+  if (!success)
+  {
+    //free all argument elems
+    for( i=0; i<cmdLine->argc; i++ )
+      free(cmdLine->arguments[i]);
+    //free arguments
+    free(cmdLine->arguments);
+    //free cmdLine
+    palloc_free_page(cmdLine);
 
-		thread_exit();
-	}
+    thread_exit();
+  }
 
-	// Assignment 1 : put arguments in stack
-	success = argument_stack(cmdLine->arguments, cmdLine->argc, &if_.esp);
+  // Assignment 1 : put arguments in stack
+  success = argument_stack(cmdLine->arguments, cmdLine->argc, &if_.esp);
 
-	//free all argument elems
-	for( i=0; i<cmdLine->argc; i++ )
-		free(cmdLine->arguments[i]);
-	//free arguments
-	free(cmdLine->arguments);
-	//free cmdLine
-	palloc_free_page(cmdLine);
+  //free all argument elems
+  for( i=0; i<cmdLine->argc; i++ )
+    free(cmdLine->arguments[i]);
+  //free arguments
+  free(cmdLine->arguments);
+  //free cmdLine
+  palloc_free_page(cmdLine);
 
-	if( !success )
-		thread_exit();
-	
-	//debug : memory dump
-	//hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
+  if( !success )
+    thread_exit();
+  
+  //debug : memory dump
+  //hex_dump(if_.esp, if_.esp, PHYS_BASE-if_.esp, true);
 
 
   /* Start the user process by simulating a return from an
@@ -164,22 +164,22 @@ start_process (void *aux)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-	struct thread *child;
-	int exit_status;
+  struct thread *child;
+  int exit_status;
 
-	/* search child process */
-	child = get_child_process( child_tid );
-	if( child == NULL )
-		return -1;
-	
-	/* pause parent thread */
-	sema_down( &child->sema_wait );
+  /* search child process */
+  child = get_child_process( child_tid );
+  if( child == NULL )
+    return -1;
+  
+  /* pause parent thread */
+  sema_down( &child->sema_wait );
 
-	/* get exit status, remove child */
-	exit_status = child->exit_status;
-	remove_child_process( child );
+  /* get exit status, remove child */
+  exit_status = child->exit_status;
+  remove_child_process( child );
 
-	return exit_status;
+  return exit_status;
 }
 
 /* Free the current process's resources. */
@@ -188,19 +188,19 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
-	int iFile;
+  int iFile;
 
-	/* Assignment 4 : close files */
-	for( iFile=2; iFile<cur->num_fd; iFile++ )
-	{
-		file_close( cur->fd_table[iFile] );
-	}
+  /* Assignment 4 : close files */
+  for( iFile=2; iFile<cur->num_fd; iFile++ )
+  {
+    file_close( cur->fd_table[iFile] );
+  }
 
-	/* Assignment 5 : close current executable */
-	file_close( thread_current()->current_file );
+  /* Assignment 5 : close current executable */
+  file_close( thread_current()->current_file );
 
-	/* deallocate fd_table */
-	palloc_free_page( cur->fd_table );
+  /* deallocate fd_table */
+  palloc_free_page( cur->fd_table );
 
 
   /* Destroy the current process's page directory and switch back
@@ -326,22 +326,22 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
-	/* acquire lock */
-	lock_acquire( &filesys_lock );
+  /* acquire lock */
+  lock_acquire( &filesys_lock );
 
   /* Open executable file. */
   file = filesys_open (file_name);
   if (file == NULL) 
     {
-			lock_release( &filesys_lock );
+      lock_release( &filesys_lock );
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
-	
-	/* add current file */
-	t->current_file = file;
-	file_deny_write( file );
-	lock_release( &filesys_lock );
+  
+  /* add current file */
+  t->current_file = file;
+  file_deny_write( file );
+  lock_release( &filesys_lock );
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -587,44 +587,44 @@ install_page (void *upage, void *kpage, bool writable)
 char**
 argument_tokenizer (char* input_string, int* argc_receiver)
 {
-	char **arguments;
-	char *token, *savePtr;
-	int iArg=0, iStr, i;
+  char **arguments;
+  char *token, *savePtr;
+  int iArg=0, iStr, i;
 
-	if( input_string == NULL )
-		thread_exit();
-	
-	*argc_receiver = 1;
+  if( input_string == NULL )
+    thread_exit();
+  
+  *argc_receiver = 1;
 
-	for( iStr=0; iStr<(int)strlen(input_string); iStr++ )
-	{
-		if( input_string[iStr] == ' ' && iStr != (int)strlen(input_string)-1 )
-		{
-			if( input_string[iStr+1] != ' ' )
-				*argc_receiver += 1;
-		}
-	}
+  for( iStr=0; iStr<(int)strlen(input_string); iStr++ )
+  {
+    if( input_string[iStr] == ' ' && iStr != (int)strlen(input_string)-1 )
+    {
+      if( input_string[iStr+1] != ' ' )
+        *argc_receiver += 1;
+    }
+  }
 
-	arguments = (char**)malloc(sizeof(char*) * (*argc_receiver));
-	if( arguments == NULL )
-		return NULL;
+  arguments = (char**)malloc(sizeof(char*) * (*argc_receiver));
+  if( arguments == NULL )
+    return NULL;
 
-	for( token = strtok_r( input_string, " ", &savePtr );
-	     token != NULL;
-			 token = strtok_r( NULL, " ", &savePtr ) )
-	{
-		arguments[iArg] = (char*)malloc(sizeof(char) * strlen(token));
-		if( arguments[iArg] == NULL )
-		{
-			for( i=iArg-1; i>-1; i-- )
-				free( arguments[iArg] );
-			free( arguments );
-			return NULL;
-		}
-		strlcpy( arguments[iArg++], token, strlen(token)+1 );
-	}
+  for( token = strtok_r( input_string, " ", &savePtr );
+       token != NULL;
+       token = strtok_r( NULL, " ", &savePtr ) )
+  {
+    arguments[iArg] = (char*)malloc(sizeof(char) * strlen(token));
+    if( arguments[iArg] == NULL )
+    {
+      for( i=iArg-1; i>-1; i-- )
+        free( arguments[iArg] );
+      free( arguments );
+      return NULL;
+    }
+    strlcpy( arguments[iArg++], token, strlen(token)+1 );
+  }
 
-	return arguments;
+  return arguments;
 }
 
 /*
@@ -633,56 +633,56 @@ argument_tokenizer (char* input_string, int* argc_receiver)
 bool
 argument_stack(char **parse, int count, void **esp)
 {
-	char **argv_pointers;
-	int i,j;
+  char **argv_pointers;
+  int i,j;
 
-	argv_pointers = (char**)malloc(sizeof(char*) * (count+1));
-	if( argv_pointers == NULL )
-		return false;
-	argv_pointers[count] = 0;
+  argv_pointers = (char**)malloc(sizeof(char*) * (count+1));
+  if( argv_pointers == NULL )
+    return false;
+  argv_pointers[count] = 0;
 
-	// push argument n~1 string into stack
-	for( i=count-1; i>-1; i-- )
-	{
-		for( j=strlen(parse[i]); j>-1; j-- )
-		{
-			*esp = *esp-1;
-			**(char **)esp = parse[i][j];
-		}
-		
-		//save the argv pointer
-		argv_pointers[i] = *esp;
-	}
+  // push argument n~1 string into stack
+  for( i=count-1; i>-1; i-- )
+  {
+    for( j=strlen(parse[i]); j>-1; j-- )
+    {
+      *esp = *esp-1;
+      **(char **)esp = parse[i][j];
+    }
+    
+    //save the argv pointer
+    argv_pointers[i] = *esp;
+  }
 
-	// push word-align
-	while( *(int*)esp%4 != 0 )
-	{
-		*esp = *esp-1;
-		**(char **)esp = 0;
-	}
+  // push word-align
+  while( *(int*)esp%4 != 0 )
+  {
+    *esp = *esp-1;
+    **(char **)esp = 0;
+  }
 
-	// push argv pointers
-	for( i=count; i>-1; i-- )
-	{
-		*esp = *esp-4;
-		**(long **)esp = (long)argv_pointers[i];
-	}
+  // push argv pointers
+  for( i=count; i>-1; i-- )
+  {
+    *esp = *esp-4;
+    **(long **)esp = (long)argv_pointers[i];
+  }
 
-	// push **argv
-	*esp = *esp-4;
-	**(long **)esp = (long)(*esp+4);
+  // push **argv
+  *esp = *esp-4;
+  **(long **)esp = (long)(*esp+4);
 
-	// push argc
-	*esp = *esp-4;
-	**(int **)esp = (int)count;
+  // push argc
+  *esp = *esp-4;
+  **(int **)esp = (int)count;
 
-	// push fake return address
-	*esp = *esp-4;
-	**(long **)esp = 0;
+  // push fake return address
+  *esp = *esp-4;
+  **(long **)esp = 0;
 
-	free(argv_pointers);
+  free(argv_pointers);
 
-	return true;
+  return true;
 }
 
 /*
@@ -691,22 +691,22 @@ argument_stack(char **parse, int count, void **esp)
 struct thread*
 get_child_process (int pid)
 {
-	struct list_elem *elem;
-	struct thread *child;
+  struct list_elem *elem;
+  struct thread *child;
 
-	/* rotate through list, find child */
-	for ( elem = list_begin( &thread_current()->child_list );
-	      elem != list_end( &thread_current()->child_list );
-				elem = list_next( elem ) )
-	{
-		/* get child struct */
-		child = list_entry( elem, struct thread, child_elem );
-		
-		if( child->tid == pid )
-			return child;
-	}
+  /* rotate through list, find child */
+  for ( elem = list_begin( &thread_current()->child_list );
+        elem != list_end( &thread_current()->child_list );
+        elem = list_next( elem ) )
+  {
+    /* get child struct */
+    child = list_entry( elem, struct thread, child_elem );
+    
+    if( child->tid == pid )
+      return child;
+  }
 
-	return NULL;
+  return NULL;
 }
 
 /*
@@ -715,15 +715,15 @@ get_child_process (int pid)
 void
 remove_child_process (struct thread *cp)
 {
-	/* validate child process */
-	if( get_child_process( cp->tid ) == NULL )
-		return;
+  /* validate child process */
+  if( get_child_process( cp->tid ) == NULL )
+    return;
 
-	/* remove from child list */
-	list_remove( &cp->child_elem );
-	
-	/* deallocate cp */
-	palloc_free_page (cp);
+  /* remove from child list */
+  list_remove( &cp->child_elem );
+  
+  /* deallocate cp */
+  palloc_free_page (cp);
 }
 
 /*
@@ -732,9 +732,9 @@ remove_child_process (struct thread *cp)
 int
 process_add_file (struct file *f)
 {
-	thread_current()->fd_table[ thread_current()->num_fd++ ] = f;
+  thread_current()->fd_table[ thread_current()->num_fd++ ] = f;
 
-	return thread_current()->num_fd-1;
+  return thread_current()->num_fd-1;
 }
 
 /*
@@ -743,13 +743,13 @@ process_add_file (struct file *f)
 struct file*
 process_get_file (int fd)
 {
-	if( fd < 0 )
-		return NULL;
-	
-	if( fd >= thread_current()->num_fd )
-		return NULL;
-	
-	return thread_current()->fd_table[fd];
+  if( fd < 0 )
+    return NULL;
+  
+  if( fd >= thread_current()->num_fd )
+    return NULL;
+  
+  return thread_current()->fd_table[fd];
 }
 
 /*
@@ -758,16 +758,16 @@ process_get_file (int fd)
 void
 process_close_file (int fd)
 {
-	if( fd < thread_current()->num_fd && fd > 1 )
-	{
-		/* check if fd is still open */
-		if( thread_current()->fd_table[fd] == NULL )
-			return;
+  if( fd < thread_current()->num_fd && fd > 1 )
+  {
+    /* check if fd is still open */
+    if( thread_current()->fd_table[fd] == NULL )
+      return;
 
-		/* close the file */
-		file_close( thread_current()->fd_table[fd] );
+    /* close the file */
+    file_close( thread_current()->fd_table[fd] );
 
-		/* restore into NULL */
-		thread_current()->fd_table[fd] = NULL;
-	}
+    /* restore into NULL */
+    thread_current()->fd_table[fd] = NULL;
+  }
 }

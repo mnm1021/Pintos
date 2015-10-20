@@ -92,13 +92,13 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-	/*
+  /*
   while (timer_elapsed (start) < ticks) 
     thread_yield ();
-	*/
+  */
 
-	/* Assignment 6 : Alarm */
-	thread_sleep( start + ticks );
+  /* Assignment 6 : Alarm */
+  thread_sleep( start + ticks );
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -178,26 +178,26 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
 
-	/* Assignment 10 : MLFQS */
-	if( thread_mlfqs )
-	{
-		/* increase recent_cpu */
-		mlfqs_increment();
-		
-		/* reload current thread's priority by 4 ticks */
-		if( ticks%4 == 3 )
-			mlfqs_priority( thread_current() );
+  /* Assignment 10 : MLFQS */
+  if( thread_mlfqs )
+  {
+    /* increase recent_cpu */
+    mlfqs_increment();
+    
+    /* reload current thread's priority by 4 ticks */
+    if( ticks%4 == 3 )
+      mlfqs_priority( thread_current() );
 
-		/* reload every threads's priority by 100 ticks */
-		if( ticks%100 == 0 )
-			mlfqs_recalc();
-	}
+    /* reload every threads's priority by 100 ticks */
+    if( ticks%100 == 0 )
+      mlfqs_recalc();
+  }
 
-	/* Assignment 6 : call thread_awake */
-	if( ticks >= get_next_tick_to_awake() )
-	{
-		thread_awake( ticks );
-	}
+  /* Assignment 6 : call thread_awake */
+  if( ticks >= get_next_tick_to_awake() )
+  {
+    thread_awake( ticks );
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

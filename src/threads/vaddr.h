@@ -50,7 +50,7 @@ static inline void *pg_round_down (const void *va) {
    space.  Up to this point in memory, user programs are allowed
    to map whatever they like.  At this point and above, the
    virtual address space belongs to the kernel. */
-#define	PHYS_BASE ((void *) LOADER_PHYS_BASE)
+#define  PHYS_BASE ((void *) LOADER_PHYS_BASE)
 
 /* Returns true if VADDR is a user virtual address. */
 static inline bool

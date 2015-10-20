@@ -286,42 +286,42 @@ main (int argc, char *argv[])
       if (strcmp (argv[1], "-h") == 0)
         usage (0, NULL);
       else if (strcmp (argv[i], "-s") == 0)
-	{
-	  if (seed_flag++)
-	    usage (-1, "Can't have more than one seed");
-	  if (++i >= argc)
-	    usage (-1, "Missing value for -s");
-	  new_seed = atoi (argv[i]);
-	}
+  {
+    if (seed_flag++)
+      usage (-1, "Can't have more than one seed");
+    if (++i >= argc)
+      usage (-1, "Missing value for -s");
+    new_seed = atoi (argv[i]);
+  }
       else if (strcmp (argv[i], "-n") == 0)
-	{
-	  if (sent_flag++)
-	    usage (-1, "Can't have more than one sentence option");
-	  if (++i >= argc)
-	    usage (-1, "Missing value for -n");
-	  sentence_cnt = atoi (argv[i]);
-	  if (sentence_cnt < 1)
-	    usage (-1, "Must have at least one sentence");
-	}
+  {
+    if (sent_flag++)
+      usage (-1, "Can't have more than one sentence option");
+    if (++i >= argc)
+      usage (-1, "Missing value for -n");
+    sentence_cnt = atoi (argv[i]);
+    if (sentence_cnt < 1)
+      usage (-1, "Must have at least one sentence");
+  }
       else if (strcmp (argv[i], "-f") == 0)
-	{
-	  if (file_flag++)
-	    usage (-1, "Can't have more than one output file");
-	  if (++i >= argc)
-	    usage (-1, "Missing value for -f");
+  {
+    if (file_flag++)
+      usage (-1, "Can't have more than one output file");
+    if (++i >= argc)
+      usage (-1, "Missing value for -f");
 
           /* Because files have fixed length in the basic Pintos
              file system, the 0 argument means that this option
              will not be useful until project 4 is
              implemented. */
-	  create (argv[i], 0);
-	  handle = open (argv[i]);
+    create (argv[i], 0);
+    handle = open (argv[i]);
           if (handle < 0)
             {
               printf ("%s: open failed\n", argv[i]);
               return EXIT_FAILURE;
             }
-	}
+  }
       else
         usage (-1, "Unrecognized flag");
     }
@@ -357,13 +357,13 @@ expand (int num, char **grammar[], char *location[], int handle)
     {
       word = grammar[num][i];
       if (!isdigit (*word))
-	{
-	  if (!ispunct (*word))
+  {
+    if (!ispunct (*word))
             hprintf (handle, " ");
           hprintf (handle, "%s", word);
-	}
+  }
       else
-	expand (atoi (word), grammar, location, handle);
+  expand (atoi (word), grammar, location, handle);
     }
 
 }
