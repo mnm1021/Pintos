@@ -1,5 +1,6 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include <devices/input.h>
 #include "threads/interrupt.h"
@@ -13,8 +14,14 @@
 struct lock filesys_lock; /* lock for file I/O */
 
 static void syscall_handler (struct intr_frame *);
-void check_address (void *addr);
+struct vm_entry* check_address (void *addr, void *esp UNUSED);
 void get_argument (void *esp, int *arg, int count);
+
+/*
+ * Assignment 11 : check for validity
+ */
+void check_valid_buffer( void* buffer, unsigned size, void *esp, bool to_write );
+void check_valid_string( const void* str, void *esp );
 
 //syscalls
 static void halt(void);
@@ -54,8 +61,8 @@ syscall_handler (struct intr_frame *f UNUSED)
   int arguments[3];
 
   //check esp, if in user area, get syscall index
-  check_address(f->esp);
-  check_address((char*)f->esp + 3);
+  check_address(f->esp, f->esp);
+  check_address((char*)f->esp + 3, f->esp);
 
   //get syscall index
   syscall_index = *((int*)(f->esp));
@@ -77,24 +84,33 @@ syscall_handler (struct intr_frame *f UNUSED)
       get_argument(f->esp, arguments, 2);
 
       // verify const char*
-      check_address((void *)arguments[0]);
+      // check_address((void *)arguments[0], f->esp);
+      /* Assignment 11 : check valid string */
+      check_valid_string( (const void*)arguments[0], f->esp );
 
       f->eax = create((const char*)arguments[0], (unsigned int)arguments[1]);
       break;
 
     case SYS_REMOVE:
       // argument num 1: const char*
-      // verify const char*
       get_argument(f->esp, arguments, 1);
-      check_address( (void *)arguments[0] );
+      
+      // verify const char*
+      // check_address( (void *)arguments[0] , f->esp );
+      /* Assignment 11 : check valid string */
+      check_valid_string( (const void*)arguments[0], f->esp );
 
       f->eax = remove( (const char*)arguments[0] );
       break;
 
     case SYS_EXEC:
       // argument num 1: const char*
+      get_argument(f->esp, arguments, 1);
+      
       // verify const char*
-      check_address( (void *)*((const char**)(f->esp) + 1) );
+      // check_address( (void *)arguments[0] , f->esp );
+      /* Assignment 11 : check valid string */
+      check_valid_string( (const void*)arguments[0], f->esp );
 
       f->eax = exec( *((const char**)(f->esp) + 1) );
       break;
@@ -107,9 +123,12 @@ syscall_handler (struct intr_frame *f UNUSED)
 
     case SYS_OPEN:
       // argument num 1: const char*
-      // verify const char*
       get_argument(f->esp, arguments, 1);
-      check_address( (void *)arguments[0] );
+      
+      // verify const char*
+      // check_address( (void *)arguments[0] , f->esp );
+      /* Assignment 11 : check valid string */
+      check_valid_string( (const void*)arguments[0], f->esp );
 
       f->eax = open( (const char*)arguments[0] );
       break;
@@ -125,7 +144,9 @@ syscall_handler (struct intr_frame *f UNUSED)
       get_argument(f->esp, arguments, 3);
 
       // verify const char*
-      check_address((void *)arguments[1]);
+      // check_address((void *)arguments[1], f->esp);
+      /* Assignment 11 : check buffer */
+      check_valid_buffer( (void*)arguments[1], (unsigned)arguments[2], f->esp, true );
 
       f->eax = read( arguments[0], (void *)arguments[1], (unsigned)arguments[2] );
       break;
@@ -135,7 +156,9 @@ syscall_handler (struct intr_frame *f UNUSED)
       get_argument(f->esp, arguments, 3);
 
       // verify const char*
-      check_address((void *)arguments[1]);
+      // check_address((void *)arguments[1], f->esp);
+      /* Assignment 11 : check string */
+      check_valid_string( (const void*)arguments[1], f->esp );
 
       f->eax = write( arguments[0], (void *)arguments[1], (unsigned)arguments[2] );
       break;
@@ -167,11 +190,15 @@ syscall_handler (struct intr_frame *f UNUSED)
 /*
  * check if address is in 'user' area.
  */
-void
-check_address (void *addr)
+struct vm_entry*
+check_address (void *addr, void *esp UNUSED)
 {
   if( (unsigned int)addr < 0x8048000 || !is_user_vaddr(addr) )
+  {
     exit(-1);
+  }
+
+  return find_vme( addr );
 }
 
 
@@ -185,10 +212,62 @@ get_argument (void *esp, int *arg, int count)
 
   for( iArg=1; iArg<=count; iArg++ )
   {
-    check_address( (int*)esp + iArg );
+    check_address( (int*)esp + iArg, esp );
     arg[iArg-1] = *((int*)esp + iArg);
   }
 }
+
+/*
+ * Assignment 11 : check valid buffer
+ */
+void
+check_valid_buffer( void *buffer, unsigned size, void *esp, bool to_write )
+{
+  struct vm_entry *vme;
+  unsigned iVm;
+  unsigned prev_page=0, curr_page;
+
+  /* rotate through all sizes, if page number different, vme again. */
+  for( iVm=0; iVm<size; iVm++ )
+  {
+    curr_page = (unsigned) pg_round_down( (unsigned char*)buffer + iVm );
+
+    /* if different, check vme. */
+    if( prev_page != curr_page )
+    {
+      vme = check_address( (unsigned char*)buffer + iVm, esp );
+
+      /* if vme doesn't exist, exit. */
+      if( vme == NULL )
+      {
+        exit( -1 );
+      }
+
+      /* if trying to write on unwritable page, exit. */
+      if( to_write == true && vme->writable == false )
+      {
+        exit( -1 );
+      }
+    }
+
+    /* set prev page. */
+    prev_page = curr_page;
+  }
+}
+
+/*
+ * Assignment 11 : check valid string
+ */
+void
+check_valid_string( const void *str, void *esp )
+{
+  unsigned iStr;
+
+  for( iStr=0; iStr<strlen(str); iStr++ )
+    if( check_address( (char*)str + iStr, esp ) == NULL )
+      exit(-1);
+}
+
 
 /*
  * System Call

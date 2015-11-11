@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include <kernel/hash.h>
 #include "threads/synch.h"
 #include "filesys/file.h"
 
@@ -141,6 +142,9 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* Assignment 11 : virtual memory */
+    struct hash vm;                     /* hash table for vm_entry */
   };
 
 /* If false (default), use round-robin scheduler.
