@@ -1,11 +1,14 @@
 #include <vm/page.h>
+#include <stdio.h>
 #include <string.h>
 #include <debug.h>
 #include "threads/vaddr.h"
 #include "threads/thread.h"
 #include "threads/malloc.h"
+#include "threads/palloc.h"
 #include "threads/synch.h"
 #include "filesys/file.h"
+#include "userprog/pagedir.h"
 
 static unsigned vm_hash_func( const struct hash_elem *e, void *aux UNUSED );
 static bool vm_less_func( const struct hash_elem *a,
@@ -114,8 +117,41 @@ bool load_file( void *kpage, struct vm_entry *vme )
   return true;
 }
 
+/*
+ * Assignment 12 : do_munmap
+ */
+void do_munmap( struct mmap_file *mmap_file )
+{
+  struct list_elem *ex;
+  struct vm_entry *vme;
 
+  /* remove all vmes */
+  for( ex = list_begin( &mmap_file->vme_list );
+       ex != list_end( &mmap_file->vme_list );
+       /* empty */ )
+  {
+    vme = list_entry( ex, struct vm_entry, mmap_elem );
 
+    /* if page is dirty, write on file. */
+    if( pagedir_is_dirty( thread_current()->pagedir, vme->vaddr ) )
+    {
+      file_write_at( vme->file, vme->vaddr, vme->read_bytes, vme->offset );
+    }
+
+    /* clear page table */
+    pagedir_clear_page( thread_current()->pagedir, vme->vaddr );
+    //palloc_free_page( vme->vaddr );
+       
+    /* delete from thread hash table */
+    delete_vme( &thread_current()->vm, vme );
+
+    /* remove from list */
+    ex = list_remove( ex );
+
+    /* free vme */
+    free( vme );
+  }
+}
 
 
 

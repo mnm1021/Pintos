@@ -9,6 +9,7 @@
 #include "devices/shutdown.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "userprog/process.h"
 
 struct lock filesys_lock; /* lock for file I/O */
@@ -37,6 +38,8 @@ static int write(int fd, void *buffer, unsigned size);
 static void seek(int fd, unsigned position);
 static unsigned tell(int fd);
 static void close(int fd);
+static int mmap(int fd, void* addr);
+static void munmap(int map_id);
 
 /*
  * in case that the kernel needs to call exit.
@@ -180,6 +183,19 @@ syscall_handler (struct intr_frame *f UNUSED)
       // argument num 1 : int
       get_argument(f->esp, arguments, 1);
       f->eax = filesize( arguments[0] );
+      break;
+
+    /* Assignment 12 : mmap, munmap */
+    case SYS_MMAP:
+      /* 2 args : int, void* */
+      get_argument( f->esp, arguments, 2 );
+      f->eax = mmap( arguments[0], (void*)arguments[1] );
+      break;
+
+    case SYS_MUNMAP:
+      /* 1 arg : int */
+      get_argument( f->esp, arguments, 1 );
+      munmap( arguments[0] );
       break;
 
     default:
@@ -585,11 +601,114 @@ close (int fd)
 }
 
 
+/*
+ * System Call
+ * Assignment 12 - mmap : memory-map file
+ */
+static int
+mmap (int fd, void* addr)
+{
+  struct file *file;
+  struct mmap_file *mmap_file;
+  struct vm_entry *vme;
+  int length, offset=0;
 
+  /* check address */
+  if( (unsigned)addr < 0x8048000 
+      || (unsigned)addr >= 0xc0000000 
+      || pg_ofs( addr ) != 0)
+    return -1;
 
+  /* get file descriptor */
+  file = process_get_file( fd );
+  if( file == NULL )
+    return -1;
 
+  /* create mmap_file */
+  mmap_file = (struct mmap_file*) malloc (sizeof(struct mmap_file));
+  if( mmap_file == NULL )
+    return -1;
 
+  /* initialize mmap_file */
+  memset( mmap_file, 0, sizeof(struct mmap_file) );
+  mmap_file->map_id = thread_current()->mmap_id++;
+  mmap_file->file = file_reopen( file );
+  list_init( &mmap_file->vme_list );
 
+  /* get length of file */
+  length = file_length( mmap_file->file );
+
+  /* while length = 0, create vm entry and add. */
+  while( length > 0 )
+  {
+    /* if already allocated area, return -1. */
+    if( find_vme( addr ) != NULL )
+      return -1;
+
+    /* create vm entry */
+    vme = (struct vm_entry*) malloc (sizeof(struct vm_entry));
+    if( vme == NULL )
+      return -1;
+
+    /* initialize vme */
+    memset( vme, 0, sizeof(struct vm_entry) );
+    vme->type = VM_FILE;
+    vme->vaddr = addr;
+    vme->writable = true;
+    vme->is_loaded = false;
+    vme->file = mmap_file->file;
+    vme->offset = 0;
+    vme->read_bytes = length > PGSIZE ? PGSIZE : length;
+    vme->zero_bytes = 0;
+
+    /* insert into mmap_file and current thread */
+    insert_vme( &thread_current()->vm, vme );
+    list_push_back( &mmap_file->vme_list, &vme->mmap_elem );
+
+    /* set length, offset */
+    length -= PGSIZE;
+    offset += PGSIZE;
+    addr += PGSIZE;
+  }
+
+  /* insert into thread's mmap_list */
+  list_push_back( &thread_current()->mmap_list, &mmap_file->elem );
+
+  return mmap_file->map_id;
+}
+
+/*
+ * System Call
+ * Assignment 12 - munmap : unmap mapped file
+ */
+static void
+munmap( int map_id )
+{
+  struct list_elem *e;
+  struct mmap_file *mmap_file;
+
+  /* search through all mmap_list */
+  for( e = list_begin( &thread_current()->mmap_list );
+       e != list_end( &thread_current()->mmap_list );
+       /* empty */ )
+  {
+    mmap_file = list_entry( e, struct mmap_file, elem );
+
+    /* check map_id */
+    if( mmap_file->map_id == map_id )
+    {
+      do_munmap( mmap_file );
+      
+      /* remove from list */
+      e = list_remove( e );
+
+      /* free mmap_elem */
+      free( mmap_file );
+    }
+    else
+      e = list_next( e );
+  }
+}
 
 
 

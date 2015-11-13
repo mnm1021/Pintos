@@ -145,6 +145,10 @@ struct thread
 
     /* Assignment 11 : virtual memory */
     struct hash vm;                     /* hash table for vm_entry */
+
+    /* Assignment 12 : mmap */
+    struct list mmap_list;              /* list of mmap_file */
+    int mmap_id;                        /* mmap_file id */
   };
 
 /* If false (default), use round-robin scheduler.

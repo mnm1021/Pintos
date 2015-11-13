@@ -20,7 +20,7 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "userprog/syscall.h"
-//
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 char** argument_tokenizer (char* input_string, int* argc_receiver);
@@ -96,7 +96,12 @@ start_process (void *aux)
 
   int i;
 
+  /* Assignment 11 : initialize vm table */
   vm_init( &thread_current()->vm );
+
+  /* Assignment 12 : initialize mmap list */
+  list_init( &thread_current()->mmap_list );
+  thread_current()->mmap_id = 0;
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
@@ -192,6 +197,7 @@ process_exit (void)
   struct thread *cur = thread_current ();
   uint32_t *pd;
   int iFile;
+  struct list_elem *e;
 
   /* Assignment 4 : close files */
   for( iFile=2; iFile<cur->num_fd; iFile++ )
@@ -204,6 +210,17 @@ process_exit (void)
 
   /* deallocate fd_table */
   palloc_free_page( cur->fd_table );
+
+  /* Assignment 12 : destroy memory-mapped file */
+  for( e = list_begin( &cur->mmap_list );
+       e != list_end( &cur->mmap_list );
+       /* empty */ )
+  {
+    struct mmap_file *mmap_file = list_entry( e, struct mmap_file, elem );
+    do_munmap( mmap_file );
+    e = list_remove( e );
+    free( mmap_file );
+  }
 
   /* Assignment 11 : destroy vm table */
   vm_destroy( &cur->vm );
@@ -845,6 +862,7 @@ handle_mm_fault( struct vm_entry *vme )
   switch( vme->type )
   {
     case VM_BIN:
+    case VM_FILE:
       /* load file */
       if( load_file( kpage, vme ) == false )
       {
