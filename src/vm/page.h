@@ -25,6 +25,7 @@ struct vm_entry
   struct list_elem mmap_elem;        /* element for mmap_file */
 
   size_t swap_slot;                  /* slot number saved for 'swap' */
+  bool is_pinned;                    /* if pinned, don't swap this. */
 };
 
 

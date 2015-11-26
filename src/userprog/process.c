@@ -851,15 +851,11 @@ handle_mm_fault( struct vm_entry *vme )
         free_page( kpage );
         return false;
       }
-  
-      vme->is_loaded = true;
       break;
 
     case VM_ANON:
       /* swap in. */
       swap_in( vme->swap_slot, kpage->kaddr );
-
-      vme->is_loaded = true;
       break;
 
     default:
@@ -872,6 +868,8 @@ handle_mm_fault( struct vm_entry *vme )
     free_page( kpage );
     return false;
   }
+
+  vme->is_loaded = true;
 
   /* set kpage's vme, lru_elem. */
   kpage->vme = vme;

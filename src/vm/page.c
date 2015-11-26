@@ -8,8 +8,6 @@
 #include "userprog/pagedir.h"
 #include "vm/swap.h"
 
-extern struct lock filesys_lock;
-
 /* Assignment 13 : lru list for pages */
 struct list lru_list;
 struct lock lru_lock;
@@ -105,7 +103,34 @@ void vm_destroy( struct hash *vm )
  */
 static void vm_destroy_func( struct hash_elem *e, void *aux UNUSED )
 {
-  free( hash_entry( e, struct vm_entry, elem ) );
+  struct vm_entry* vme;
+  struct page* page;
+  struct list_elem* elem;
+
+  /* get current vm_entry */
+  vme = hash_entry( e, struct vm_entry, elem );
+
+  lock_acquire( &lru_lock );
+
+  /* search through lru list */
+  for( elem = list_begin( &lru_list );
+       elem != list_end( &lru_list );
+       /* empty */ )
+  {
+    /* get page from list */
+    page = list_entry( elem, struct page, lru_elem );
+    elem = list_next( elem );
+
+    /* if page holds this vme, delete page from list. */
+    if( page->vme == vme )
+    {
+      __free_page( page );
+    }
+  }
+
+  lock_release( &lru_lock );
+
+  free( vme );
 }
 
 /*
@@ -133,6 +158,8 @@ void do_munmap( struct mmap_file *mmap_file )
 {
   struct list_elem *ex;
   struct vm_entry *vme;
+  struct list_elem *elem;
+  struct page *page;
 
   /* remove all vmes */
   for( ex = list_begin( &mmap_file->vme_list );
@@ -147,17 +174,31 @@ void do_munmap( struct mmap_file *mmap_file )
       file_write_at( vme->file, vme->vaddr, vme->read_bytes, vme->offset );
     }
 
-    /* clear page table */
-    pagedir_clear_page( thread_current()->pagedir, vme->vaddr );
-    //palloc_free_page( vme->vaddr );
-       
-    /* delete from thread hash table */
-    delete_vme( &thread_current()->vm, vme );
-
-    /* remove from list */
+    /* remove from list */  
     ex = list_remove( ex );
 
-    /* free vme */
+    lock_acquire( &lru_lock );
+
+    /* search through lru list, find for page. */
+    for( elem = list_begin( &lru_list );
+         elem != list_end( &lru_list );
+         elem = list_next( elem ) )
+    {
+      /* get page from list */
+      page = list_entry( elem, struct page, lru_elem );
+
+      /* if page holds this vme, free page and break. */
+      if( page->vme == vme )
+      {
+        __free_page( page );
+        //list_remove( elem );
+        break;
+      }
+    }
+
+    lock_release( &lru_lock );
+
+    delete_vme( &thread_current()->vm, vme );
     free( vme );
   }
 }
@@ -282,6 +323,9 @@ static void* try_to_get_page( enum palloc_flags flag )
       break;
   }
 
+  /* unloaded from now on. */
+  victim->vme->is_loaded = false;
+
   __free_page( victim );
 
   lock_release( &lru_lock );
@@ -303,7 +347,8 @@ static struct page* get_victim_page()
   /* get page descriptor */
   page = list_entry( e, struct page, lru_elem );
 
-  while( pagedir_is_accessed( page->thread->pagedir, page->vme->vaddr ) )
+  while( page->vme->is_pinned == false &&
+         pagedir_is_accessed( page->thread->pagedir, page->vme->vaddr ) )
   {
     /* if page is accessed, set to 'unaccessed'. */
     pagedir_set_accessed( page->thread->pagedir, page->vme->vaddr, false );
