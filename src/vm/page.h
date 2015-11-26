@@ -1,5 +1,7 @@
 #include <kernel/hash.h>
 #include <kernel/list.h>
+#include "threads/palloc.h"
+#include "threads/thread.h"
 
 #define VM_BIN 0
 #define VM_FILE 1
@@ -22,8 +24,7 @@ struct vm_entry
   struct hash_elem elem;             /* element for thread's vm table */
   struct list_elem mmap_elem;        /* element for mmap_file */
 
-  /* later on */
-  size_t swap_slot;                  /* */
+  size_t swap_slot;                  /* slot number saved for 'swap' */
 };
 
 
@@ -49,3 +50,21 @@ struct mmap_file
 };
 
 void do_munmap( struct mmap_file *mmap_file );
+
+/*
+ * Assignment 13 : managing physical 'page'
+ */
+struct page
+{
+  struct vm_entry *vme;               /* vm_entry pointing this page */
+  void* kaddr;                        /* physical page address */
+  struct list_elem lru_elem;          /* element for lru_list */
+  struct thread* thread;              /* thread using this page */
+};
+
+void lru_init( void );
+void add_page_to_list( struct page* page );
+void delete_page_from_list( struct page* page );
+struct page* alloc_page( enum palloc_flags flag );
+void free_page( struct page* page );
+

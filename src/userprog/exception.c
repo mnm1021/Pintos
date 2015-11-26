@@ -151,8 +151,6 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  //printf("page fault : %p\n", fault_addr);
-
   /* Assignment 11 : page fault handler */
   /* assert if accessing to read-only page. */
   if( not_present == true )
@@ -161,17 +159,20 @@ page_fault (struct intr_frame *f)
     vme = find_vme( fault_addr );
     if( vme == NULL )
     {
+      //printf("no vme : %p\n", fault_addr);
       sys_exit( -1 );
     }
 
     /* if not handled correctly, exit. */
     if( handle_mm_fault( vme ) == false )
     {
+      //printf("handle_mm_fault failed : %p\n", fault_addr);
       sys_exit( -1 );
     }
   }
   else
   {
+    //printf("access violation : %p\n", fault_addr);
     sys_exit( -1 );
   }
 
