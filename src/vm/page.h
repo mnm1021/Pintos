@@ -6,6 +6,7 @@
 #define VM_BIN 0
 #define VM_FILE 1
 #define VM_ANON 2
+#define STACK_HEURISTIC 3
 
 /*
  * Assignment 11 : virtual memory

@@ -610,7 +610,7 @@ setup_stack (void **esp)
       kpage->vme = vme;
       add_page_to_list( kpage );
     }
-  
+
   return success;
 }
 
@@ -858,6 +858,11 @@ handle_mm_fault( struct vm_entry *vme )
       swap_in( vme->swap_slot, kpage->kaddr );
       break;
 
+    case STACK_HEURISTIC:
+      /* change type into 'stack'. */
+      vme->type = VM_ANON;
+      break;
+
     default:
       NOT_REACHED();
   }
@@ -878,8 +883,67 @@ handle_mm_fault( struct vm_entry *vme )
   return true;
 }
 
+/*
+ * Assignment 14 : verify stack pointer
+ */
+bool verify_stack( void* sp, void* fault_addr )
+{
+  /* check if in user's vaddr. */
+  if( is_user_vaddr( fault_addr ) == false )
+    return false;
 
+  /* if address is over stack pointer, check if in 32 bits. */
+  if( (unsigned)sp > (unsigned)fault_addr )
+  {
+    if( (unsigned)sp - (unsigned)fault_addr > 32 )
+      return false;
+  }
 
+  /* if over 8MB, return false. */
+  if( (unsigned)sp < 0xBF800000 )
+    return false;
+
+  return true;
+}
+
+/*
+ * Assignment 14 : expand stack
+ */
+bool expand_stack( void* vaddr )
+{
+  struct vm_entry* vme;
+  void* round_down_vaddr = pg_round_down( vaddr );
+
+  while( (unsigned)round_down_vaddr < 0xC0000000 )
+  {
+    /* create new vm_entry. */
+    vme = (struct vm_entry*) malloc (sizeof(struct vm_entry));
+
+    /* initialize vm_entry. */
+    memset( vme, 0, sizeof(struct vm_entry) );
+    vme->type = STACK_HEURISTIC;
+    vme->vaddr = round_down_vaddr;
+    vme->writable = true;
+
+    /* call handle_mm_fault : install page. */
+    if ( insert_vme( &thread_current()->vm, vme ) == true )
+    {
+      if( handle_mm_fault( vme ) == false )
+      {
+        free( vme );
+        return false;
+      }
+    }
+    else
+    {
+      break;
+    }
+
+    round_down_vaddr += PGSIZE;
+  }
+
+  return true;
+}
 
 
 

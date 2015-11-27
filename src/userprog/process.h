@@ -16,4 +16,8 @@ void process_close_file (int fd);
 /* Assignment 11 : handle page fault */
 bool handle_mm_fault( struct vm_entry *vme );
 
+/* Assignment 14 : expand stack */
+bool verify_stack( void* sp, void* fault_addr );
+bool expand_stack( void* vaddr );
+
 #endif /* userprog/process.h */

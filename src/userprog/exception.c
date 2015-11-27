@@ -7,6 +7,8 @@
 #include "userprog/syscall.h"
 #include "userprog/process.h"
 
+bool stack_extend_enabled = true;
+
 /* Number of page faults processed. */
 static long long page_fault_cnt;
 
@@ -159,34 +161,32 @@ page_fault (struct intr_frame *f)
     vme = find_vme( fault_addr );
     if( vme == NULL )
     {
-      //printf("no vme : %p\n", fault_addr);
-      sys_exit( -1 );
-    }
+      bool stack_expended = false;
 
+      /* check area whether the address is in 8MB stack. */
+      if( stack_extend_enabled )
+      {
+        if( verify_stack( f->esp, fault_addr ) == true )
+          stack_expended = expand_stack( fault_addr );
+      }
+
+      if( stack_expended == false )
+      {
+//        printf("no vme : %p\n", fault_addr);
+        sys_exit( -1 );
+      }
+    }
     /* if not handled correctly, exit. */
-    if( handle_mm_fault( vme ) == false )
+    else if( handle_mm_fault( vme ) == false )
     {
-      //printf("handle_mm_fault failed : %p\n", fault_addr);
+//      printf("handle_mm_fault failed : %p\n", fault_addr);
       sys_exit( -1 );
     }
   }
   else
   {
-    //printf("access violation : %p\n", fault_addr);
+//    printf("access violation : %p\n", fault_addr);
     sys_exit( -1 );
   }
-
-  // exit the thread
-  // sys_exit(-1);
-
-  /* To implement virtual memory, delete the rest of the function
-     body, and replace it with code that brings in the page to
-     which fault_addr refers. */
-//  printf ("Page fault at %p: %s error %s page in %s context.\n",
-//          fault_addr,
-//          not_present ? "not present" : "rights violation",
-//          write ? "writing" : "reading",
-//          user ? "user" : "kernel");
-//  kill (f);
 }
 

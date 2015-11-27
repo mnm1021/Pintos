@@ -191,7 +191,6 @@ void do_munmap( struct mmap_file *mmap_file )
       if( page->vme == vme )
       {
         __free_page( page );
-        //list_remove( elem );
         break;
       }
     }
